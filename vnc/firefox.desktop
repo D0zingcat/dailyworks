@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Firefox
+Icon=
+Exec=/opt/local/firefox/firefox
+Comment=Browser
+Categories=Network;Internet;
+Terminal=false

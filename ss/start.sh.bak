@@ -1,0 +1,7 @@
+#!/bin/bash
+docker run -d --rm -v /root:/root/conf  --name ss -p 19841:19841/tcp -p 11235:11235/tcp -p 12580:12580/tcp -p 13311:13311/tcp -p 15151:15151/tcp -p 53211:53211/tcp \
+       	-p 19999:19999/tcp -p 22222:22222/tcp \
+-p 12121:12121/tcp -p 34555:34555/tcp -p 21234:21234/tcp -p 19876:19876/tcp -p 11724:11724/tcp \
+-p 11725:11725/tcp -p 11726:11726/tcp -p 11727:11727/tcp -p 11728:11728/tcp -p 11729:11729/tcp \
+-p 11730:11730/tcp -p 11731:11731/tcp -p 11732:11732/tcp -p 11733:11733/tcp -p 11734:11734/tcp \
+-p 11734:11734/udp -p 11735:11735/tcp d0zingcat/ss-goplus -u -c /root/config.json 

@@ -1,0 +1,31 @@
+user nginx;
+worker_processes auto;
+daemon off;
+
+events {
+	worker_connections 1024;
+}
+
+http {
+	include	mime.types;
+	default_type	application/octet-stream;
+	sendfile	on;
+	keepalive_timeout	65;
+
+	server {
+    		listen 80;
+    		server_name g.d0zingcat.xyz;
+    		
+    		location /.well-known/acme-challenge/ {
+    		  default_type  "text/plain";
+    		  alias         /usr/www/dehydrated;
+    		}
+    
+    		location / {
+    	  		rewrite ^/(.*)$ https://g.d0zingcat.xyz/$1 permanent;
+    		}
+    
+	}
+}
+
+

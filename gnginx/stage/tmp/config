@@ -1,0 +1,2 @@
+CA="https://acme-staging.api.letsencrypt.org/directory"
+CA_TERMS="https://acme-staging.api.letsencrypt.org/terms"
