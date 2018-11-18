@@ -33,7 +33,7 @@ then
 fi
 
 upgrade 
-sudo apt-get install build-essential curl file git vim
+sudo apt-get install build-essential curl file git vim -y
 jessie_flag=$(grep $JESSIE $RELEASE_PATH | wc -l)
 stretch_flag=$(grep $STRETCH $RELEASE_PATH | wc -l)
 buster_flag=$(grep $BUSTER $RELEASE_PATH | wc -l)
