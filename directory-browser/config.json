@@ -1,0 +1,18 @@
+{
+    "port": "9000",
+    "dir": "tmp",
+    "source": "localhost",
+    "cert": "files.d0zingcat.xyz.pem",
+    "key": "files.d0zingcat.xyz.key",
+	"safe": "/personal",
+    "users": [
+        {
+            "username": "d0zingcat",
+            "password": "514329afd98aa7e0233c6d85b73836fd"
+        },
+        {
+            "username": "zt",
+            "password": "ab92b414e38a763702a47d5bd5584df2"
+        }
+    ]
+}
