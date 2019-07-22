@@ -1,63 +1,195 @@
-#!/bin/sh
-# this script is used for initializating debian based vps.
-# only support version ge debian jessie
+#!/usr/bin/env bash
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+export PATH
+#=======================================================================================#
+#	OS required: Debian 9+(Other versions will not be supported)			#	
+#	Description: Out-of-box use for backing up and migration			#
+#	Author: d0zingcat <asong4love@gmail.com>					#
+#	Thanks: Nobody									#
+#	Intro: On-the-way								#
+#=======================================================================================#
 
-# exit immediately if a command exits with a non-zero status
-set -e
+clear
+echo
+echo '###################################################################################'
+echo '# Easy backup and recover VPS for frequent VPS creatation and release		#'
+echo '# Author: d0zingcat <asong4love@gmail.com>					#'
+echo '# Blog: https://blog.d0zingcat.xyz/						#'
+echo '###################################################################################'
+echo
 
-BUSTER=buster
-STRETCH=stretch
-JESSIE=jessie
-RELEASE_PATH=/etc/os-release 
-SOURCE_PATH=/etc/apt/sources.list
+dp_backup_path=/Apps/Dphandler/
+temp_dir=.temp/
 
-upgrade()
-{
-    sudo apt-get update && sudo apt-get upgrade -y
-    sudo apt-get dist-upgrade -y
+# Colors
+red='\033[0;31m'
+green='\033[0;32m'
+yellow='\033[0;33m'
+plain='\033[0m'
+
+os_initial() {
+	apt update
+	apt upgrade -y
+	apt dist-upgrade -y
+	apt install -y build-essential lrzsz vim git g++ sudo zip wget nload htop iptables nvim
+	apt remove docker docker-engine docker.io containerd runc
+	apt install -y apt-transport-https ca-certificates curl gnupg2 software-properties-common
+	curl -fsSL https://download.docker.com/linux/debian/gpg | sudo apt-key add -
+	apt-key fingerprint 0EBFCD88
+	add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
+	apt update
+	apt install -y docker-ce docker-ce-cli containerd.io
 }
 
-# judege if current user is root
-if [ $USER = root ]
-then
-    read -p 'Do you want to create a user?[Y/N]' YN
-    if [ $YN = 'Y' ] || [ $YN = 'y']
-    then
-        apt-get update && apt-get install sudo -y
-        read -p 'Username: ' username
-        adduser $username
-        usermod -aG sudo $username
-    fi
-    echo 'Please run this script under non-root user(the user you have just created)'
-    exit 1
-fi
+check_privilege() {
+	if [ "$(id -u)" != "0" ]; then
+		echo "[ERROR] You must be root to run this script!!!" >&2
+		exit 1
+	fi
+}
 
-upgrade 
-sudo apt-get install build-essential curl file git vim -y
-jessie_flag=$(grep $JESSIE $RELEASE_PATH | wc -l)
-stretch_flag=$(grep $STRETCH $RELEASE_PATH | wc -l)
-buster_flag=$(grep $BUSTER $RELEASE_PATH | wc -l)
-if [ $buster_flag -ge 2 ]
-then
-    echo "You've already used the latest debian release!"
-fi
-if [ $stretch_flag -ge 2 ]
-then
-    echo "You are using debian(stretch), will upgrade to buster."
-    sudo cp $SOURCE_PATH $SOURCE_PATH.bak.$STRETCH 
-    sudo sed -i "s/$STRETCH/$BUSTER/g" $SOURCE_PATH
-    upgrade
-fi
-if [ $jessie_flag -ge 2 ]
-then
-    echo "You are using debian(jessie), will upgrade to buster(first upgrade to stretch)."
-    sudo cp $SOURCE_PATH $SOURCE_PATH.bak.$STRETCH
-    sudo sed -i "s/$JESSIE/$STRETCH/g" $SOURCE_PATH
-    upgrade
-    sudo cp $SOURCE_PATH $SOURCE_PATH.bak.$STRETCH 
-    sudo sed -i "s/$STRETCH/$BUSTER/g" $SOURCE_PATH
-    upgrade
-fi
-# sh -c "$(curl -fsSL https://raw.githubusercontent.com/Linuxbrew/install/master/install.sh)" > /tmp/linuxbrew.log
+add_user() {
+	read -p 'Username to add: ' user
+	adduser $user
+	echo "User added successfully"
+	usermod -aG docker $user
+}
+
+# should only use this function on Alibaba cloud
+uninstall_aegis() {
+	wget http://update.aegis.aliyun.com/download/uninstall.sh
+	chmod +x uninstall.sh
+	./uninstall.sh
+	wget http://update.aegis.aliyun.com/download/quartz_uninstall.sh
+	chmod +x quartz_uninstall.sh
+	./quartz_uninstall.sh
+	pkill aliyun-service
+	rm -fr /etc/init.d/agentwatch /usr/sbin/aliyun-service
+	rm -rf /usr/local/aegis*
+	iptables -I INPUT -s 140.205.201.0/28 -j DROP
+	iptables -I INPUT -s 140.205.201.16/29 -j DROP
+	iptables -I INPUT -s 140.205.201.32/28 -j DROP
+	iptables -I INPUT -s 140.205.225.192/29 -j DROP
+	iptables -I INPUT -s 140.205.225.200/30 -j DROP
+	iptables -I INPUT -s 140.205.225.184/29 -j DROP
+	iptables -I INPUT -s 140.205.225.183/32 -j DROP
+	iptables -I INPUT -s 140.205.225.206/32 -j DROP
+	iptables -I INPUT -s 140.205.225.205/32 -j DROP
+	iptables -I INPUT -s 140.205.225.195/32 -j DROP
+	iptables -I INPUT -s 140.205.225.204/32 -j DROP
+}
+enable_bbr() {
+	echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+	echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+	sysctl -p
+}
+install_acme() {
+	git clone https://github.com/Neilpang/acme.sh.git
+	cd ./acme.sh
+	./acme.sh --install
+}
+download_dpuploader() {
+	git clone https://github.com/andreafabrizi/Dropbox-Uploader.git
+	cp Dropbox-Uploader/dropbox_uploader.sh /usr/local/bin/
+	chmod u+x /usr/local/bin/dropbox_uploader.sh
+	dropbox_uploader.sh
+}
+compress_backup() {
+	dir=$1
+	dir=/tmp/
+	filename=archive_$(date +%Y-%m-%dT%H%M%S).tar.gz
+	tar -zcvf $dir$filename $HOME/
+	dropbox_uploader.sh upload $dir$filename $2
+}
+purge_old_backups() {
+	dropbox_uploader.sh list $1 | tail -n +2 | head --lines=$2 | awk '{print $3}' | xargs -I {} -n 1 dropbox_uploader.sh delete $1/{}
+}
+download_recovery() {
+	dir=$1
+	latest_file=$(dropbox_uploader.sh list $dir | tail -n 1 | awk '{print $3}')
+	if [ -f $latest_file ]; then
+		echo "File $latest_file already downloaded!"
+	else
+		dropbox_uploader.sh download $dir$latest_file
+	fi
+	tar zxvf $latest_file -C /
+	chown -R $2:$2 /home/$2/
+}
+cleanup() {
+	rm -rf $1
+}
+disable_root_login() {
+	c=$(grep -E '^PermitRootLogin' /etc/ssh/sshd_config | wc -l)
+	if [ $c -gt 0 ]; then
+		sed -i -r 's/^PermitRootLogin yes/PermitRootLogin no/g' /etc/ssh/sshd_config
+	else
+		echo 'PermitRootLogin no' >> /etc/ssh/sshd_config
+	fi
+	systemctl reload sshd
+}
+compose_ss() {
+	#read -ps 'Please enter the password(or visit this https://duckduckgo.com/?q=password+12&t=ffsb&ia=answer): ' pass
+	port=$(( $RANDOM % 10000 + 10000))
+	echo "port: $port"
+	pass=$(cat /dev/urandom | base64 | head -n 1 |cut -c -10)
+	echo 'The password is'$pass
+	method=chacha20-ietf-poly1305
+	userinfo=$(echo -n "$method:$pass" | base64)
+	outer_ip=$(curl -s https://ipinfo.io/ip)
+	ss_link="ss://$userinfo@$outer_ip:$port#auto-ss"
+	echo -e "For quick addition: \n$ss_link\n"
+	docker pull shadowsocks/shadowsocks-libev
+	id=$(docker run -e PASSWORD=$pass -e METHOD=$method -p$port:8388 -p$port:8388/udp -d shadowsocks/shadowsocks-libev)
+	echo "container id: $id"
+}
+stop_ss() {
+	docker ps | grep shadowsocks/shadowsocks-libev| awk '{print $1}'| xargs docker stop
+}
+
+action=$1
+[ -z $1 ] && action=nothing
+case "$action" in
+	init)
+		# Initialization step
+		if [ -d $temp_dir ]; then
+			echo "$temp_dir already existed! Skipping..."
+		else
+			mkdir $temp_dir
+		fi
+		cd $temp_dir
+		check_privilege
+		os_initial
+		read -p 'User desiered to recovery(create): ' recovery_user
+		add_user $recovery_user
+		enable_bbr
+		download_dpuploader
+		disable_root_login
+		;;
+	backup)
+		purge_old_backups $dp_backup_path 1
+		compress_backup $temp_dir $dp_backup_path
+		;;
+	recover)
+		download_recovery $dp_backup_path $recovery_user
+		;;
+	purge-aegis)
+		uninstall_aegis
+		;;
+	ss-start)
+		compose_ss
+		;;
+	ss-stop)
+		stop_ss
+		;;
+	cleanup)
+		cleanup $temp_dir
+		;;
+	*)
+		echo 'Arguments error! [$(action)]'	
+		;;
+esac
+
+
+
 
 
